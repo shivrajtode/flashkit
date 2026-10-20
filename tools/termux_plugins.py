@@ -7,7 +7,9 @@ Google Play builds all use different keys). So this script:
   1. reads the signing certificate of the installed Termux,
   2. looks for the plugin APKs on GitHub and F-Droid (the source your Termux came from is tried first),
   3. downloads a candidate and only accepts it if its certificate equals Termux's,
-  4. installs it (root: silently with `pm install`; otherwise it opens the normal Android installer).
+  4. installs it (root: silently with `pm install`; no root: it opens Android's own installer - you just tap Install).
+Plugins that are already installed and working are left alone, and a download that Android rejects (wrong key)
+makes it try the next source automatically.
 
     python termux_plugins.py            check, download what is missing/mismatched, install
     python termux_plugins.py --check    only report (exit 0 = all fine, 3 = something missing or mismatched)
@@ -153,11 +155,26 @@ def same_signer(a, b):
 
 
 # ---------------------------------------------------------------- talking to Android
-def run(cmd, timeout=30, root=False):
+SYS_PATH = "/system/bin:/system/xbin:/vendor/bin"
+# Termux sets LD_LIBRARY_PATH/LD_PRELOAD, which makes Android's own tools (pm, cmd) crash with "CANNOT LINK EXECUTABLE"
+ROOT_PREFIX = "unset LD_LIBRARY_PATH LD_PRELOAD; export PATH=%s:$PATH; " % SYS_PATH
+
+
+def sys_env():
+    e = {k: v for k, v in os.environ.items() if k not in ("LD_LIBRARY_PATH", "LD_PRELOAD")}
+    e["PATH"] = SYS_PATH + ":" + e.get("PATH", "")
+    return e
+
+
+def run(cmd, timeout=30, root=False, sysenv=False):
+    env = None
     try:
         if root:
-            cmd = ["su", "-c", cmd if isinstance(cmd, str) else " ".join(shlex.quote(c) for c in cmd)]
-        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+            text = cmd if isinstance(cmd, str) else " ".join(shlex.quote(c) for c in cmd)
+            cmd = ["su", "-c", ROOT_PREFIX + text]
+        elif sysenv:
+            env = sys_env()
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, env=env, stdin=subprocess.DEVNULL)
         return p.returncode, p.stdout.decode("utf-8", "replace")
     except FileNotFoundError:
         return 127, ""
@@ -179,11 +196,7 @@ def have_root():
     return _ROOT
 
 
-def installed_packages():
-    """{package: installer} from `pm list packages -i` (installer '' when unknown)."""
-    rc, out = run(["pm", "list", "packages", "-i"], 30)
-    if "package:" not in out and have_root():
-        rc, out = run("pm list packages -i", 60, root=True)
+def parse_pm_list(out):
     res = {}
     for line in out.splitlines():
         m = re.match(r"package:(\S+)(?:\s+installer=(\S+))?", line.strip())
@@ -192,10 +205,39 @@ def installed_packages():
     return res
 
 
+def installed_packages():
+    """{package: installer}. Root sees every app; without root Android hides apps that Termux doesn't 'query'."""
+    res = {}
+    if have_root():
+        res.update(parse_pm_list(run("pm list packages -i", 60, root=True)[1]))
+    for k, v in parse_pm_list(run(["pm", "list", "packages", "-i"], 30, sysenv=True)[1]).items():
+        if not res.get(k):
+            res[k] = v
+    return res
+
+
+def probe(pkg):
+    """Does the plugin actually answer? Works even when Android hides the app from `pm`."""
+    if pkg == "com.termux.gui":
+        cmd = os.environ.get("FK_PROBE_GUI")
+        if cmd:
+            return run(["sh", "-c", cmd], 15)[0] == 0
+        return run([sys.executable, "-c", "import termuxgui as t\nwith t.Connection() as c: pass"], 15)[0] == 0
+    cmd = os.environ.get("FK_PROBE_API")
+    if cmd:
+        return run(["sh", "-c", cmd], 15)[0] == 0
+    rc, out = run(["termux-battery-status"], 12)
+    return rc == 0 and "percentage" in out
+
+
+def present(pkg):
+    return pkg in installed_packages() or probe(pkg)
+
+
 def apk_paths(pkg):
-    rc, out = run(["pm", "path", pkg], 30)
-    if "package:" not in out and have_root():
-        rc, out = run("pm path %s" % shlex.quote(pkg), 30, root=True)
+    rc, out = run("pm path %s" % shlex.quote(pkg), 30, root=True) if have_root() else (1, "")
+    if "package:" not in out:
+        rc, out = run(["pm", "path", pkg], 30, sysenv=True)
     return [l.split("package:", 1)[1].strip() for l in out.splitlines() if l.startswith("package:")]
 
 
@@ -216,7 +258,7 @@ def installed_certs(pkg, workdir):
 
 
 def device_abi():
-    rc, out = run(["getprop", "ro.product.cpu.abi"], 10)
+    rc, out = run(["getprop", "ro.product.cpu.abi"], 10, sysenv=True)
     out = out.strip()
     return out if out in ABIS else "arm64-v8a"
 
@@ -294,13 +336,13 @@ def fdroid_candidates(pkg, abi):
              "tag": str(code), "sha256": None, "score": 1}]
 
 
-def fetch_matching(pkg, label, termux_certs, order, workdir, abi):
-    """Download candidates (source order given) until one is signed like Termux. -> (apk path, candidate)."""
-    seen = []
+def iter_matching(pkg, label, termux_certs, order, workdir, abi, tried):
+    """Yield (apk path, candidate) for downloads signed like Termux (or any, if Termux's key can't be read)."""
+    repo = dict((p, r) for p, _, r in PLUGINS)[pkg]
     for src in order:
         say("  %s: looking on %s ..." % (label, "GitHub" if src == "github" else "F-Droid"))
         try:
-            cands = github_candidates(dict((p, r) for p, _, r in PLUGINS)[pkg], abi) if src == "github" else fdroid_candidates(pkg, abi)
+            cands = github_candidates(repo, abi) if src == "github" else fdroid_candidates(pkg, abi)
         except Exception as e:
             say("    not available there (%s)" % e)
             continue
@@ -325,74 +367,87 @@ def fetch_matching(pkg, label, termux_certs, order, workdir, abi):
                 os.remove(dest)
                 continue
             certs = apk_certs(dest)
-            seen.append((src, c["name"], certs[:1]))
+            tried.append((src, c["name"], certs[:1]))
             if not termux_certs:
-                say("    (can't read Termux's signature, so it can't be compared - using it anyway)")
-                return dest, c
-            if same_signer(certs, termux_certs):
+                say("    (Termux's signature can't be read - Android itself will accept or refuse this one)")
+                yield dest, c
+            elif same_signer(certs, termux_certs):
                 say("    signature matches Termux - good")
-                return dest, c
-            say("    signed by a different key (%s...) - not usable with your Termux" % (certs[0][:12] if certs else "unsigned?"))
-            os.remove(dest)
-    raise NoMatch(seen)
+                yield dest, c
+            else:
+                say("    signed by a different key (%s...) - not usable with your Termux" % (certs[0][:12] if certs else "unsigned?"))
+            try:
+                os.remove(dest)
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------- status and installing
 def status(workdir):
     inst = installed_packages()
-    tcerts = installed_certs(TERMUX, workdir) if TERMUX in inst else []
+    tcerts = installed_certs(TERMUX, workdir)
     rows = []
     for pkg, label, _ in PLUGINS:
-        row = {"pkg": pkg, "label": label, "state": "missing"}
+        row = {"pkg": pkg, "label": label}
         if pkg in inst:
             certs = installed_certs(pkg, workdir)
             row["state"] = "installed" if not (tcerts and certs) else ("ok" if same_signer(certs, tcerts) else "wrong-signature")
+        elif probe(pkg):
+            row["state"] = "ok"  # it answers, so Android accepted it next to Termux
+        else:
+            row["state"] = "missing"
         rows.append(row)
     return inst, tcerts, rows
 
 
-def install_root(items, uninstall):
-    """items = [(apk, package)]. One detached root script, so Termux is restarted at most once."""
+def install_root_one(apk, pkg, uninstall_first):
+    """Install one APK with root in a detached script (Android may restart Termux when a plugin is installed)."""
     os.makedirs(os.path.dirname(LOG), exist_ok=True)
     q = shlex.quote
-    lines = [": > %s" % q(LOG)]
-    for pkg in uninstall:
-        lines.append("pm uninstall %s >> %s 2>&1; echo \"uninstall %s rc=$?\" >> %s" % (q(pkg), q(LOG), pkg, q(LOG)))
-    for i, (apk, pkg) in enumerate(items):
-        tmp = "/data/local/tmp/fk_plugin_%d.apk" % i
-        lines += ["cp %s %s && chmod 644 %s" % (q(apk), tmp, tmp),
-                  "pm install -r -d %s >> %s 2>&1" % (tmp, q(LOG)),
-                  "echo \"install %s rc=$?\" >> %s" % (pkg, q(LOG)),
-                  "rm -f %s" % tmp]
-    lines += ["echo DONE >> %s" % q(LOG), "am start -n com.termux/com.termux.app.TermuxActivity >/dev/null 2>&1"]
-    say("Installing with root (Android may restart Termux once - if it does, open it again and type: flashkit)")
-    subprocess.Popen(["su", "-c", "\n".join(lines)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+    tmp = "/data/local/tmp/fk_plugin.apk"
+    open(LOG, "w").close()  # empty it HERE (not in the script), or we'd read the previous run's "DONE"
+    lines = []
+    if uninstall_first:
+        lines.append("pm uninstall %s >> %s 2>&1" % (q(pkg), q(LOG)))
+    lines += ["cp %s %s && chmod 644 %s" % (q(apk), tmp, tmp), "pm install -r -d %s >> %s 2>&1" % (tmp, q(LOG)),
+              "echo \"install %s rc=$?\" >> %s" % (pkg, q(LOG)), "rm -f %s" % tmp, "echo DONE >> %s" % q(LOG),
+              "am start -n com.termux/com.termux.app.TermuxActivity >/dev/null 2>&1"]
+    subprocess.Popen(["su", "-c", ROOT_PREFIX + "\n".join(lines)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
-    end = time.time() + 150
+    end, txt = time.time() + 150, ""
     while time.time() < end:
         try:
             txt = open(LOG).read()
         except OSError:
             txt = ""
         if "DONE" in txt:
-            for l in txt.splitlines():
-                if l.startswith(("install", "uninstall")) or "Failure" in l or "Success" in l:
-                    say("  " + l)
-            return True
+            break
         time.sleep(1)
-    return False
+    if "install %s rc=0" % pkg in txt:
+        return True, ""
+    fail = [l for l in txt.splitlines() if "Failure" in l or "Error" in l]
+    return False, (fail[-1] if fail else "no answer from the installer (see %s)" % LOG)
 
 
-def install_manual(items, uninstall):
-    if uninstall:
-        say("These have the wrong signature - remove them first (Settings > Apps): " + ", ".join(uninstall))
-    for apk, pkg in items:
-        say("Opening the Android installer for %s - tap Install, then come back to Termux." % pkg)
-        run(["termux-open", apk], 20)
-        end = time.time() + 240
-        while time.time() < end and pkg not in installed_packages():
-            time.sleep(3)
-    return True
+def install_manual_one(apk, pkg):
+    """No root: open Android's own installer and wait until the plugin shows up."""
+    say("  Opening Android's installer for %s - tap Install." % pkg)
+    say("  If it says installing from Termux isn't allowed: tap Settings, turn on 'Allow from this source', press Back, tap Install.")
+    run(["termux-open", apk], 20)
+    start, settings, again = time.time(), False, False
+    while time.time() - start < 300:
+        if present(pkg):
+            return True, ""
+        t = time.time() - start
+        if t > 30 and not settings:
+            settings = True
+            say("  (opening the 'install unknown apps' page for Termux, in case it needs allowing)")
+            run(["am", "start", "-a", "android.settings.MANAGE_UNKNOWN_APP_SOURCES", "-d", "package:com.termux"], 15)
+        if t > 120 and not again:
+            again = True
+            run(["termux-open", apk], 20)
+        time.sleep(3)
+    return False, "timed out waiting for the installation"
 
 
 def main(argv=None):
@@ -408,7 +463,8 @@ def main(argv=None):
     os.makedirs(WORK, exist_ok=True)
     inst, tcerts, rows = status(WORK)
     installer = inst.get(TERMUX, "")
-    say("Termux: %s | signature %s" % ("installed by " + installer if installer else "installer unknown", (tcerts[0][:16] + "...") if tcerts else "could not be read"))
+    where = {"": "GitHub/other (no installer recorded)", "com.android.vending": "Google Play"}.get(installer, "F-Droid" if "fdroid" in installer else installer)
+    say("Termux: from %s | signature %s" % (where, (tcerts[0][:16] + "...") if tcerts else "could not be read"))
     for r in rows:
         say("  %-11s %s" % (r["label"], {"ok": "installed, signature matches", "installed": "installed", "missing": "NOT installed",
                                           "wrong-signature": "installed but signed with a DIFFERENT key (won't work)"}[r["state"]]))
@@ -421,33 +477,38 @@ def main(argv=None):
     order = [args.source] if args.source else (["fdroid", "github"] if "fdroid" in installer else ["github", "fdroid"])
     if "vending" in installer:
         say("Note: your Termux comes from Google Play; its plugins must come from Play too, so this usually can't work.")
-    abi, items, uninstall, failed = device_abi(), [], [], []
+    if not have_root():
+        say("No root: Android's own installer will open for each app - just tap Install.")
+    abi, failed = device_abi(), []
     for r in todo:
         say("\n%s" % r["label"])
-        try:
-            path, _ = fetch_matching(r["pkg"], r["label"], tcerts, order, WORK, abi)
-        except NoMatch as e:
+        wrong = r["state"] == "wrong-signature"
+        if wrong and not have_root():
+            say("  It is installed with a different key. Uninstall it (Settings > Apps > %s), then run:  flashkit plugins" % r["label"])
             failed.append(r["label"])
-            if not e.args[0]:
-                say("  !! Couldn't download anything - no internet, or GitHub / F-Droid can't be reached. Check your connection, then run:  flashkit plugins")
-            else:
-                say("  !! No download is signed like your Termux. Tried: %s" % ", ".join("%s %s" % (s, f[0][:8] if f else "?") for s, _, f in e.args[0]))
-                say("     Install Termux and its plugins from the SAME place (F-Droid or GitHub), then run this again.")
             continue
-        items.append((path, r["pkg"]))
-        if r["state"] == "wrong-signature":
-            uninstall.append(r["pkg"])
-    if not items:
-        return 2
-    if uninstall and not args.yes and sys.stdin.isatty():
-        if input("Replace %s (settings/data of the plugin are lost)? [Y/n] " % ", ".join(uninstall)).strip().lower() == "n":
-            return 2
-    (install_root if have_root() else install_manual)(items, uninstall)
-    after = installed_packages()
-    bad = [p for _, p in items if p not in after]
-    for _, p in items:
-        say("  %s: %s" % (p, "installed" if p not in bad else "NOT installed - see %s" % LOG))
-    return 0 if not bad and not failed else 4
+        if wrong and not args.yes and sys.stdin.isatty():
+            if input("  Replace the installed %s (its settings are lost)? [Y/n] " % r["label"]).strip().lower() == "n":
+                failed.append(r["label"])
+                continue
+        tried, done, why = [], False, ""
+        for apk, c in iter_matching(r["pkg"], r["label"], tcerts, order, WORK, abi, tried):
+            ok, why = install_root_one(apk, r["pkg"], wrong) if have_root() else install_manual_one(apk, r["pkg"])
+            if ok:
+                say("  %s installed" % r["label"])
+                done = True
+                break
+            say("  Android refused it: %s" % why[:160])
+        if not done:
+            failed.append(r["label"])
+            if not tried:
+                say("  !! Couldn't download anything - no internet, or GitHub / F-Droid can't be reached. Check your connection, then run:  flashkit plugins")
+            elif why:
+                say("  !! None of the downloads could be installed. Install Termux and its plugins from the SAME place (F-Droid or GitHub), then run:  flashkit plugins")
+            else:
+                say("  !! No download is signed like your Termux (tried: %s)." % ", ".join("%s %s" % (x, f[0][:8] if f else "?") for x, _, f in tried))
+                say("     Install Termux and its plugins from the SAME place (F-Droid or GitHub), then run:  flashkit plugins")
+    return 0 if not failed else (4 if len(failed) < len(todo) else 2)
 
 
 if __name__ == "__main__":

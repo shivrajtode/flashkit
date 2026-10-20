@@ -21,7 +21,7 @@ def lp(b): return struct.pack("<I", len(b)) + b
 
 def make_apk(path, pkg, key, scheme="v1"):
     with zipfile.ZipFile(path, "w") as z:
-        z.writestr("AndroidManifest.xml", b"manifest"); z.writestr("fake_package.txt", pkg)
+        z.writestr("AndroidManifest.xml", b"manifest"); z.writestr("fake_package.txt", pkg); z.writestr("fake_key.txt", key.name if key else "none")
         if key and scheme in ("v1", "both"): z.writestr("META-INF/CERT.RSA", key.p7)
     if key and scheme in ("v2", "both"):
         data = open(path, "rb").read()
@@ -36,28 +36,34 @@ def make_apk(path, pkg, key, scheme="v1"):
 
 FAKE_PM = r'''#!/bin/sh
 S="$FKSTATE"
+blind() { [ -z "$FKROOT" ] && [ -f "$S/blind" ]; }
 case "$1" in
- list) while read -r p i; do echo "package:$p  installer=$i"; done < "$S/packages" ;;
- path) grep "^$2 " "$S/paths" | cut -d' ' -f2 | sed 's/^/package:/' ;;
- install) f="$4"; [ -f "$f" ] || { echo "Failure [no file]"; exit 1; }; p=$(unzip -p "$f" fake_package.txt); mkdir -p "$S/apks"; cp "$f" "$S/apks/$p.apk"
+ list) if blind; then echo "package:com.termux  installer=null"; else while read -r p i; do echo "package:$p  installer=$i"; done < "$S/packages"; fi ;;
+ path) if blind && [ "$2" != com.termux ]; then exit 0; fi; grep "^$2 " "$S/paths" | cut -d' ' -f2 | sed 's/^/package:/' ;;
+ install) f="$4"; [ -f "$f" ] || { echo "Failure [no file]"; exit 1; }; p=$(unzip -p "$f" fake_package.txt); k=$(unzip -p "$f" fake_key.txt); mkdir -p "$S/apks" "$S/keys"
+   if [ "$p" != com.termux ] && [ -f "$S/keys/com.termux" ] && [ "$k" != "$(cat "$S/keys/com.termux")" ]; then echo "Failure [INSTALL_FAILED_SHARED_USER_INCOMPATIBLE: signatures do not match]"; exit 1; fi
+   if [ -f "$S/keys/$p" ] && [ "$k" != "$(cat "$S/keys/$p")" ]; then echo "Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Package $p signatures do not match previously installed version; ignoring!]"; exit 1; fi
+   cp "$f" "$S/apks/$p.apk"; echo "$k" > "$S/keys/$p"
    grep -v "^$p " "$S/packages" > "$S/p.tmp"; echo "$p null" >> "$S/p.tmp"; mv "$S/p.tmp" "$S/packages"
    grep -v "^$p " "$S/paths" > "$S/q.tmp"; echo "$p $S/apks/$p.apk" >> "$S/q.tmp"; mv "$S/q.tmp" "$S/paths"; echo "$p" >> "$S/installed.log"; echo Success ;;
- uninstall) grep -v "^$2 " "$S/packages" > "$S/p.tmp"; mv "$S/p.tmp" "$S/packages"; echo "$2" >> "$S/uninstalled.log"; echo Success ;;
+ uninstall) grep -v "^$2 " "$S/packages" > "$S/p.tmp"; mv "$S/p.tmp" "$S/packages"; rm -f "$S/keys/$2"; echo "$2" >> "$S/uninstalled.log"; echo Success ;;
 esac
 '''
 FAKE_SU = r'''#!/bin/sh
 [ "$1" = "-c" ] || exit 1
-case "$2" in "id -u") echo 0 ;; *) mkdir -p "$FKSTATE/tmp"; exec sh -c "$(printf '%s' "$2" | sed "s#/data/local/tmp#$FKSTATE/tmp#g")" ;; esac
+export FKROOT=1
+case "$2" in *"id -u") echo 0 ;; *) mkdir -p "$FKSTATE/tmp"; exec sh -c "$(printf '%s' "$2" | sed "s#/data/local/tmp#$FKSTATE/tmp#g")" ;; esac
 '''
+FAKE_OPEN = '#!/bin/sh\necho "$1" >> "$FKSTATE/open.log"\nFKROOT=1 pm install -r -d "$1" >> "$FKSTATE/open-out.log" 2>&1\n'
 
 class Env:
     def __init__(self):
         self.tmp = tempfile.mkdtemp(prefix="fkt_"); self.home = self.tmp + "/home"; self.state = self.tmp + "/state"; self.bin = self.tmp + "/bin"
         for d in (self.home, self.state, self.bin, self.tmp + "/apks"): os.makedirs(d)
-        for name, body in (("pm", FAKE_PM), ("su", FAKE_SU), ("am", '#!/bin/sh\necho "$@" >> "$FKSTATE/am.log"\n'), ("getprop", "#!/bin/sh\necho arm64-v8a\n")):
+        for name, body in (("pm", FAKE_PM), ("su", FAKE_SU), ("termux-open", FAKE_OPEN), ("am", '#!/bin/sh\necho "$@" >> "$FKSTATE/am.log"\n'), ("getprop", "#!/bin/sh\necho arm64-v8a\n")):
             open(self.bin + "/" + name, "w").write(body); os.chmod(self.bin + "/" + name, 0o755)
         self.keys = {}; self.requests = []; self.routes = {}
-        open(self.state + "/packages", "w").close(); open(self.state + "/paths", "w").close()
+        open(self.state + "/packages", "w").close(); open(self.state + "/paths", "w").close(); os.makedirs(self.state + "/keys")
         env = self
         class H(http.server.BaseHTTPRequestHandler):
             def log_message(self, *a): pass
@@ -71,8 +77,9 @@ class Env:
     def key(self, n):
         if n not in self.keys: self.keys[n] = Key(self.tmp, n)
         return self.keys[n]
-    def install_pkg(self, pkg, key, installer="null", scheme="v1"):
+    def install_pkg(self, pkg, key, installer="null", scheme="v1", real_key=None):
         p = "%s/apks/%s.apk" % (self.tmp, pkg); make_apk(p, pkg, self.key(key) if key else None, scheme)
+        os.makedirs(self.state + "/keys", exist_ok=True); open(self.state + "/keys/" + pkg, "w").write(real_key or key or "none")
         for f in ("packages", "paths"):
             lines = [l for l in open(self.state + "/" + f).read().splitlines() if not l.startswith(pkg + " ")]
             lines.append("%s %s" % (pkg, installer if f == "packages" else p)); open(self.state + "/" + f, "w").write("\n".join(lines) + "\n")
@@ -87,10 +94,12 @@ class Env:
     def fdroid(self, pkg, key):
         make_apk(self.tmp + "/apks/fd_" + pkg, pkg, self.key(key)); self.routes["/fdroid-repo/%s_7.apk" % pkg] = open(self.tmp + "/apks/fd_" + pkg, "rb").read()
         self.routes["/fdroid-api/" + pkg] = json.dumps({"packageName": pkg, "suggestedVersionCode": 7, "packages": [{"versionCode": 7}]}).encode()
-    def run(self, *args):
-        e = dict(os.environ, HOME=self.home, FKSTATE=self.state, PATH=self.bin + ":" + os.environ["PATH"],
+    def run(self, *args, **extra):
+        e = dict(os.environ, **extra); e.update(HOME=self.home, FKSTATE=self.state, PATH=self.bin + ":" + os.environ["PATH"],
                  FK_GITHUB_API="http://127.0.0.1:%d" % self.port, FK_FDROID_API="http://127.0.0.1:%d/fdroid-api" % self.port,
                  FK_FDROID_REPO="http://127.0.0.1:%d/fdroid-repo" % self.port)
+        for k in ("FK_NO_ROOT", "FK_PROBE_GUI", "FK_PROBE_API"):
+            if k not in extra: e.pop(k, None)
         p = subprocess.run([sys.executable, SCRIPT] + list(args), env=e, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120)
         return p.returncode, p.stdout + p.stderr
     def installed(self): return sorted(l.split()[0] for l in open(self.state + "/packages").read().splitlines() if l.strip())
@@ -141,8 +150,34 @@ class Flow(unittest.TestCase):
         for p in ("com.termux", "com.termux.gui", "com.termux.api"): e.install_pkg(p, "K1")
         rc, out = e.run(); self.assertEqual((rc, e.requests), (0, [])); self.assertIn("Nothing to do", out)
     def test_unreadable_termux_signature_still_installs(self):
-        e = self.e; e.install_pkg("com.termux", None); self.both_github("K1")
-        rc, out = e.run(); self.assertEqual(rc, 0, out); self.assertIn("can't read Termux's signature", out)
+        e = self.e; e.install_pkg("com.termux", None, real_key="K1"); self.both_github("K1")
+        rc, out = e.run(); self.assertEqual(rc, 0, out); self.assertIn("can't be read", out)
+    def test_blind_pm_without_root_is_not_fooled(self):
+        """Android hides other apps from a normal Termux user - the installed plugins must still be found (through root)."""
+        e = self.e
+        for p in ("com.termux", "com.termux.gui", "com.termux.api"): e.install_pkg(p, "K1")
+        open(e.state + "/blind", "w").close(); self.both_github("K9")
+        rc, out = e.run(); self.assertEqual((rc, e.requests), (0, [])); self.assertIn("Nothing to do", out); self.assertIn("signature matches", out)
+    def test_working_plugin_counts_as_installed_even_if_hidden(self):
+        e = self.e; e.install_pkg("com.termux", "K1"); open(e.state + "/packages", "w").write("com.termux null\n"); open(e.state + "/blind", "w").close()
+        rc, out = e.run(FK_PROBE_GUI="true", FK_PROBE_API="true", FK_NO_ROOT="1")
+        self.assertEqual((rc, e.requests), (0, [])); self.assertIn("Nothing to do", out)
+    def test_android_refuses_first_source_so_next_is_tried(self):
+        e = self.e; e.install_pkg("com.termux", None, real_key="K2"); self.both_github("K1"); self.both_fdroid("K2")
+        rc, out = e.run(); self.assertEqual(rc, 0, out); self.assertIn("Android refused it", out)
+        self.assertEqual(e.installed(), ["com.termux", "com.termux.api", "com.termux.gui"]); self.assertTrue([r for r in e.requests if "fdroid-repo" in r])
+    def test_existing_working_plugin_is_never_overwritten(self):
+        e = self.e; e.install_pkg("com.termux", None, real_key="K2"); e.install_pkg("com.termux.gui", "K2"); e.install_pkg("com.termux.api", "K2"); self.both_github("K1")
+        rc, out = e.run(); self.assertEqual((rc, e.requests), (0, [])); self.assertIn("Nothing to do", out)
+    def test_no_root_opens_the_android_installer(self):
+        e = self.e; e.install_pkg("com.termux", "K1"); self.both_github("K1")
+        rc, out = e.run(FK_NO_ROOT="1"); self.assertEqual(rc, 0, out); self.assertIn("No root", out); self.assertIn("tap Install", out)
+        self.assertEqual(len(open(e.state + "/open.log").read().split()), 2); self.assertEqual(sorted(open(e.state + "/installed.log").read().split()), ["com.termux.api", "com.termux.gui"])
+        self.assertFalse(os.path.exists(e.state + "/tmp"), "nothing went through su")
+    def test_no_root_and_blind_pm_uses_the_plugins_answer(self):
+        e = self.e; e.install_pkg("com.termux", "K1"); open(e.state + "/blind", "w").close(); self.both_github("K1")
+        rc, out = e.run(FK_NO_ROOT="1", FK_PROBE_GUI='test -f "$FKSTATE/apks/com.termux.gui.apk"', FK_PROBE_API='test -f "$FKSTATE/apks/com.termux.api.apk"')
+        self.assertEqual(rc, 0, out); self.assertIn("Termux:GUI installed", out)
     def test_offline_is_reported_not_crashed(self):
         e = self.e; e.install_pkg("com.termux", "K1"); rc, out = e.run()
         self.assertEqual(rc, 2); self.assertIn("not available there", out); self.assertIn("no internet", out); self.assertNotIn("Traceback", out)

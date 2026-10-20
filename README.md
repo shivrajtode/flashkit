@@ -15,7 +15,8 @@ pkg install -y git && git clone https://github.com/shivrajtode/flashkit && bash 
 That installs everything it needs: python, adb/fastboot, termux-api, the `termuxgui` Python library, and the
 **Termux:GUI** and **Termux:API** apps - picked so that their **signature matches your Termux**
 (Android only lets them work together when they come from the same source). With root they're installed silently;
-otherwise the normal Android installer opens.
+otherwise Android's own installer opens and you just tap **Install** (if it says installing from Termux isn't allowed, tap *Settings* and allow it once).
+Plugins you already have installed and working are never touched.
 
 Then open the app any time with:
 
@@ -39,7 +40,7 @@ flashkit update
 | `flashkit update` | pull the latest version from GitHub and refresh dependencies |
 | `flashkit setup` | (re)install packages, plugins and the command |
 | `flashkit plugins` | check / install Termux:GUI and Termux:API (`--check` only reports) |
-| `flashkit doctor` | check root, tools, plugins, storage permission |
+| `flashkit doctor` (or `flashkit check`) | check root, tools, plugins, storage permission |
 | `flashkit cli` | the older text-menu version |
 | `flashkit uninstall` | remove the command and settings |
 
