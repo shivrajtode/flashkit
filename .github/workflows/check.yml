@@ -1,0 +1,12 @@
+name: check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python -m py_compile flashkit_gui.py tools/termux_plugins.py tools/gen_icons.py
+      - run: for f in install.sh get.sh bin/flashkit tools/publish.sh legacy/flashkit.sh; do bash -n "$f"; done
+      - run: python -m unittest discover -s tests -v

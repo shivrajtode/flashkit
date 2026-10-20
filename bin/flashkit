@@ -1,0 +1,92 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# FlashKit launcher (installed as $PREFIX/bin/flashkit by install.sh)
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+DIR="$(cd "$(dirname "$SELF")/.." && pwd)"
+PY="${PYTHON:-python}"
+VERSION="$(cat "$DIR/VERSION" 2>/dev/null || echo '?')"
+say() { printf '%s\n' "$*"; }
+err() { printf '\033[1;31m%s\033[0m\n' "$*" >&2; }
+
+usage() { cat <<USAGE
+FlashKit $VERSION - flash a second Android device over OTG
+
+  flashkit              open the app
+  flashkit update       download the latest version from GitHub
+  flashkit setup        (re)install packages, plugins and this command
+  flashkit plugins      check / install Termux:GUI and Termux:API (signature matched)
+  flashkit doctor       check that everything needed is in place
+  flashkit cli          the older text-menu version
+  flashkit version      show the version
+  flashkit uninstall    remove the command and FlashKit's settings
+USAGE
+}
+
+run_app() {
+  "$PY" -c "import termuxgui" 2>/dev/null || { err "termuxgui is missing - fixing it first"; bash "$DIR/install.sh" --deps-only || exit 1; }
+  if command -v pm >/dev/null 2>&1 && ! pm list packages 2>/dev/null | grep -q '^package:com.termux.gui$'; then
+    err "The Termux:GUI app isn't installed (or can't be seen). Run:  flashkit plugins"
+  fi
+  exec "$PY" "$DIR/flashkit_gui.py" "$@"
+}
+
+repo_conf() { sed -n "s/^$1=//p" "$DIR/tools/repo.conf" 2>/dev/null | head -n1; }
+
+do_update() {
+  cd "$DIR" || exit 1
+  old="$(cat VERSION 2>/dev/null)"
+  if [ -d .git ]; then
+    git fetch --quiet origin || { err "Can't reach GitHub - check your internet and try again."; exit 1; }
+    br="$(git rev-parse --abbrev-ref HEAD)"
+    if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$br")" ]; then
+      say "Already up to date ($old)."
+    else
+      before="$(git rev-parse HEAD)"
+      if [ -n "$(git status --porcelain)" ]; then
+        git stash push -u -q -m "flashkit-auto-$(date +%s)" && say "Your local edits were saved with:  git -C $DIR stash list"
+      fi
+      git pull --ff-only --quiet origin "$br" || git reset --hard --quiet "origin/$br"
+      say "What's new:"; git log --oneline "$before..HEAD" | head -n 12 | sed 's/^/  /'
+    fi
+  else
+    repo="$(repo_conf GITHUB_REPO)"; branch="$(repo_conf BRANCH)"; branch="${branch:-main}"
+    case "$repo" in ""|__GH_REPO__) err "This copy doesn't know its GitHub repo - re-install with git clone."; exit 1 ;; esac
+    tmp="$(mktemp -d)"
+    curl -fsSL "https://codeload.github.com/$repo/tar.gz/refs/heads/$branch" | tar -xz -C "$tmp" --strip-components=1 \
+      || { err "Download failed."; rm -rf "$tmp"; exit 1; }
+    cp -a "$tmp/." "$DIR/" && rm -rf "$tmp"
+  fi
+  bash "$DIR/install.sh" --update --no-plugins || true
+  python "$DIR/tools/termux_plugins.py" --check >/dev/null 2>&1 || python "$DIR/tools/termux_plugins.py" || true
+  say ""; say "FlashKit is now $(cat "$DIR/VERSION") (was $old)."
+}
+
+do_doctor() {
+  say "FlashKit $VERSION in $DIR"
+  case "${PREFIX:-}" in *com.termux*) say "  ok   running in Termux" ;; *) say "  FAIL not running in Termux" ;; esac
+  command -v python >/dev/null && say "  ok   $(python --version 2>&1)" || say "  FAIL python missing"
+  python -c "import termuxgui" 2>/dev/null && say "  ok   termuxgui" || say "  FAIL termuxgui (run: flashkit setup)"
+  for t in adb fastboot git curl termux-clipboard-set; do command -v $t >/dev/null && say "  ok   $t" || say "  FAIL $t missing (run: flashkit setup)"; done
+  [ -d "$HOME/storage/shared" ] && say "  ok   storage allowed" || say "  FAIL storage not allowed (run: flashkit setup)"
+  if command -v su >/dev/null; then timeout 30 su -c id 2>/dev/null | grep -q 'uid=0' && say "  ok   root works" || say "  FAIL root denied/timed out (allow Termux in your root manager)"; else say "  FAIL no su - this phone isn't rooted (needed to flash)"; fi
+  python "$DIR/tools/termux_plugins.py" --check
+}
+
+do_uninstall() {
+  rm -f "$PREFIX/bin/flashkit" && say "Removed the flashkit command."
+  printf 'Also delete FlashKit settings and logs (~/.flashkit_gui.json, ~/flashkit_gui.log, ~/.flashkit)? [y/N] '
+  read -r a; case "$a" in y|Y) rm -rf "$HOME/.flashkit_gui.json" "$HOME/flashkit_gui.log" "$HOME/.flashkit"; say "Deleted." ;; esac
+  say "The folder $DIR and the Termux:GUI/API apps were left alone - delete or uninstall them yourself if you want."
+}
+
+case "${1:-run}" in
+  run) shift 2>/dev/null; run_app "$@" ;;
+  update|upgrade) do_update ;;
+  setup|install) shift; exec bash "$DIR/install.sh" "$@" ;;
+  plugins) shift; exec python "$DIR/tools/termux_plugins.py" "$@" ;;
+  doctor) do_doctor ;;
+  cli) command -v dialog >/dev/null || pkg install -y dialog; exec bash "$DIR/legacy/flashkit.sh" ;;
+  version|-v|--version) say "$VERSION" ;;
+  uninstall) do_uninstall ;;
+  help|-h|--help) usage ;;
+  *) err "Unknown command: $1"; usage; exit 2 ;;
+esac
