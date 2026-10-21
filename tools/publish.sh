@@ -24,7 +24,7 @@ USER_NAME="$(detect_user)"
 [ -n "$USER_NAME" ] || die "Couldn't tell your GitHub username. Run again with:  GH_USER=yourname bash tools/publish.sh"
 say "Publishing as $USER_NAME/$REPO_NAME"
 
-for f in README.md get.sh tools/repo.conf; do [ -f "$f" ] && sed -i "s#__GH_REPO__#$USER_NAME/$REPO_NAME#g" "$f"; done
+for f in README.md docs/GUIDE.md get.sh tools/repo.conf .github/ISSUE_TEMPLATE/config.yml; do [ -f "$f" ] && sed -i "s#__GH_REPO__#$USER_NAME/$REPO_NAME#g" "$f"; done
 
 [ -d .git ] || { git init -q -b "$BRANCH" 2>/dev/null || { git init -q && git checkout -q -b "$BRANCH"; }; }
 git checkout -q "$BRANCH" 2>/dev/null || git checkout -q -b "$BRANCH"
@@ -60,5 +60,18 @@ else
   git push -u origin "$BRANCH" || die "Push failed - check that Termux is logged in to GitHub."
 fi
 git tag -f "v$VERSION" -m "FlashKit $VERSION" >/dev/null 2>&1 && git push -f -q origin "v$VERSION" >/dev/null 2>&1
+DESC="Flash, sideload and rescue a second Android device over OTG from a rooted phone - Termux:GUI app"
+TOPICS="termux,android,adb,fastboot,flasher,rom,gsi,sideload,otg,kernelsu,magisk,termux-gui,python"
+if [ -z "${FLASHKIT_REMOTE:-}" ]; then   # best effort: repo description + topics
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    gh repo edit "$USER_NAME/$REPO_NAME" --description "$DESC" --homepage "https://t.me/Shivraj_editx" --add-topic "$TOPICS" >/dev/null 2>&1 && say "Set the repo description and topics"
+  elif [ -f "$HOME/.git-credentials" ]; then
+    tok="$(sed -n 's#^https://[^:]*:\([^@]*\)@github\.com.*#\1#p' "$HOME/.git-credentials" | head -n1)"
+    if [ -n "$tok" ]; then
+      curl -fsS -X PATCH -H "Authorization: token $tok" "https://api.github.com/repos/$USER_NAME/$REPO_NAME" -d "{\"description\":\"$DESC\",\"homepage\":\"https://t.me/Shivraj_editx\"}" >/dev/null 2>&1
+      curl -fsS -X PUT -H "Authorization: token $tok" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$USER_NAME/$REPO_NAME/topics" -d "{\"names\":[\"${TOPICS//,/\",\"}\"]}" >/dev/null 2>&1 && say "Set the repo description and topics"
+    fi
+  fi
+fi
 say "Done: https://github.com/$USER_NAME/$REPO_NAME"
 printf '\nInstall on any phone (Termux):\n  pkg install -y git && git clone https://github.com/%s/%s && bash %s/install.sh\n\nUpdate an installed copy:\n  flashkit update\n' "$USER_NAME" "$REPO_NAME" "$REPO_NAME"

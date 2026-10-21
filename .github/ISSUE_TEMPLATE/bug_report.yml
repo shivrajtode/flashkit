@@ -1,0 +1,38 @@
+name: 🐞 Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping! The **`flashkit doctor`** output answers most questions - please paste it below.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `flashkit doctor`
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: devices
+    attributes:
+      label: Your phone and the device you're flashing
+      placeholder: e.g. host phone model / Android version, target device model
+  - type: dropdown
+    id: termux
+    attributes:
+      label: Where is Termux from?
+      options: [F-Droid, GitHub, Not sure]
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (optional)
+      description: Last lines of `~/flashkit_gui.log`, or use **Copy** on the job screen.
+      render: text
