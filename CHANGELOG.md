@@ -1,5 +1,8 @@
 # 📝 Changelog
 
+## g9.4 - README cleanup
+- Removed the maintainer-only publishing section from the public README - the same steps are already in `tools/publish.sh`'s own header comment, for personal use only.
+
 ## g9.3 - Repo makeover
 - New README with banner, badges, a 3-step install and a pop-up cheat-sheet.
 - New icons and artwork (`assets/`), a social preview image, and a full user guide (`docs/GUIDE.md`).

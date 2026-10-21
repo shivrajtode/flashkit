@@ -247,19 +247,6 @@ Tap <b>Cancel job</b> on the job screen - it stops the whole process tree. Then 
 
 <br>
 
-## 🛠️ For the maintainer - publishing changes
-
-Download the repo zip to your phone's Downloads folder, then in Termux:
-
-```sh
-mkdir -p ~/flashkit-upload && cd ~/flashkit-upload && unzip -o "$(ls -t ~/storage/downloads/flashkit-repo*.zip | head -n 1)" && cd flashkit && bash tools/publish.sh
-```
-
-`tools/publish.sh` finds your GitHub login, creates the repo if needed, sets its description and topics, commits and pushes.
-Set the repo's **social preview** once (Settings → General → Social preview) with `assets/social-preview.png`.
-
-<br>
-
 <div align="center">
 
 ### 💙 Made by [@Shivraj_editx](https://t.me/Shivraj_editx)
