@@ -36,7 +36,9 @@ flashkit update
 
 | Command | What it does |
 |---|---|
-| `flashkit` | open the app |
+| `flashkit` | open the FlashKit menu: **Start FlashKit**, **Run manually** (text menu), Update, plugins, doctor, autostart |
+| `flashkit start` / `start flashkit` | start the app right away |
+| `flashkit autostart on` | open the menu every time Termux starts |
 | `flashkit update` | pull the latest version from GitHub and refresh dependencies |
 | `flashkit setup` | (re)install packages, plugins and the command |
 | `flashkit plugins` | check / install Termux:GUI and Termux:API (`--check` only reports) |

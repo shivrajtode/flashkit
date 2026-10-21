@@ -60,7 +60,7 @@ class Env:
     def __init__(self):
         self.tmp = tempfile.mkdtemp(prefix="fkt_"); self.home = self.tmp + "/home"; self.state = self.tmp + "/state"; self.bin = self.tmp + "/bin"
         for d in (self.home, self.state, self.bin, self.tmp + "/apks"): os.makedirs(d)
-        for name, body in (("pm", FAKE_PM), ("su", FAKE_SU), ("termux-open", FAKE_OPEN), ("am", '#!/bin/sh\necho "$@" >> "$FKSTATE/am.log"\n'), ("getprop", "#!/bin/sh\necho arm64-v8a\n")):
+        for name, body in (("pm", FAKE_PM), ("su", FAKE_SU), ("termux-open", FAKE_OPEN), ("appops", '#!/bin/sh\necho "$@" >> "$FKSTATE/appops.log"\n'), ("am", '#!/bin/sh\necho "$@" >> "$FKSTATE/am.log"\n'), ("getprop", "#!/bin/sh\necho arm64-v8a\n")):
             open(self.bin + "/" + name, "w").write(body); os.chmod(self.bin + "/" + name, 0o755)
         self.keys = {}; self.requests = []; self.routes = {}
         open(self.state + "/packages", "w").close(); open(self.state + "/paths", "w").close(); os.makedirs(self.state + "/keys")
@@ -126,7 +126,10 @@ class Flow(unittest.TestCase):
         rc, out = e.run(); self.assertEqual(rc, 0, out); self.assertEqual(e.installed(), ["com.termux", "com.termux.api", "com.termux.gui"])
         self.assertFalse([r for r in e.requests if "fdroid" in r], "F-Droid not needed"); self.assertIn("signature matches Termux", out)
         self.assertTrue([r for r in e.requests if "gui-arm64-v8a" in r], "picked the build for this CPU")
-        self.assertIn("DONE", open(e.home + "/.flashkit/plugin-install.log").read()); self.assertIn("com.termux.app.TermuxActivity", open(e.state + "/am.log").read())
+        import glob; logs = glob.glob(e.home + "/.flashkit/plugin-install-*.log"); self.assertTrue(logs and all("DONE" in open(l).read() for l in logs))
+        self.assertIn("com.termux.app.TermuxActivity", open(e.state + "/am.log").read())
+        self.assertIn("com.termux.gui SYSTEM_ALERT_WINDOW allow", open(e.state + "/appops.log").read(), "overlay permission granted automatically")
+        self.assertFalse(os.path.exists(e.home + "/.flashkit/open-next"), "no restart happened, so no restart marker is left")
     def test_fdroid_termux_tries_fdroid_first(self):
         e = self.e; e.install_pkg("com.termux", "K2", installer="org.fdroid.fdroid"); self.both_github("K1"); self.both_fdroid("K2")
         rc, out = e.run(); self.assertEqual(rc, 0, out); self.assertFalse([r for r in e.requests if r.startswith("/dl/") or "/repos/" in r], "GitHub not needed")
@@ -178,6 +181,11 @@ class Flow(unittest.TestCase):
         e = self.e; e.install_pkg("com.termux", "K1"); open(e.state + "/blind", "w").close(); self.both_github("K1")
         rc, out = e.run(FK_NO_ROOT="1", FK_PROBE_GUI='test -f "$FKSTATE/apks/com.termux.gui.apk"', FK_PROBE_API='test -f "$FKSTATE/apks/com.termux.api.apk"')
         self.assertEqual(rc, 0, out); self.assertIn("Termux:GUI installed", out)
+    def test_unwritable_log_left_by_an_older_run_is_not_a_problem(self):
+        """Your phone's crash: an older run (as root) left plugin-install.log that the Termux user can't open for writing."""
+        e = self.e; e.install_pkg("com.termux", "K1"); self.both_github("K1")
+        os.makedirs(e.home + "/.flashkit"); old = e.home + "/.flashkit/plugin-install.log"; open(old, "w").write("old"); os.chmod(old, 0o444)
+        rc, out = e.run(); self.assertEqual(rc, 0, out); self.assertNotIn("Traceback", out); self.assertFalse(os.path.exists(old), "old log cleaned up")
     def test_offline_is_reported_not_crashed(self):
         e = self.e; e.install_pkg("com.termux", "K1"); rc, out = e.run()
         self.assertEqual(rc, 2); self.assertIn("not available there", out); self.assertIn("no internet", out); self.assertNotIn("Traceback", out)

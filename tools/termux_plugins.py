@@ -15,6 +15,7 @@ makes it try the next source automatically.
     python termux_plugins.py --check    only report (exit 0 = all fine, 3 = something missing or mismatched)
 Pure Python standard library - nothing to pip install."""
 import argparse
+import glob
 import hashlib
 import json
 import os
@@ -36,7 +37,11 @@ FDROID_API = os.environ.get("FK_FDROID_API", "https://f-droid.org/api/v1/package
 FDROID_REPO = os.environ.get("FK_FDROID_REPO", "https://f-droid.org/repo").rstrip("/")
 HOME = os.path.expanduser("~")
 WORK = os.path.join(HOME, ".flashkit", "plugins")
-LOG = os.path.join(HOME, ".flashkit", "plugin-install.log")
+FKDIR = os.path.join(HOME, ".flashkit")
+
+
+def new_log():
+    return os.path.join(FKDIR, "plugin-install-%d-%s.log" % (os.getpid(), os.urandom(3).hex()))
 ABIS = ("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
 UA = "flashkit-installer"
 
@@ -402,31 +407,40 @@ def status(workdir):
 
 def install_root_one(apk, pkg, uninstall_first):
     """Install one APK with root in a detached script (Android may restart Termux when a plugin is installed)."""
-    os.makedirs(os.path.dirname(LOG), exist_ok=True)
+    os.makedirs(FKDIR, exist_ok=True)
+    log = new_log()
+    open(log, "w").close()  # made by us, so we can read it; root only appends to it
     q = shlex.quote
     tmp = "/data/local/tmp/fk_plugin.apk"
-    open(LOG, "w").close()  # empty it HERE (not in the script), or we'd read the previous run's "DONE"
     lines = []
     if uninstall_first:
-        lines.append("pm uninstall %s >> %s 2>&1" % (q(pkg), q(LOG)))
-    lines += ["cp %s %s && chmod 644 %s" % (q(apk), tmp, tmp), "pm install -r -d %s >> %s 2>&1" % (tmp, q(LOG)),
-              "echo \"install %s rc=$?\" >> %s" % (pkg, q(LOG)), "rm -f %s" % tmp, "echo DONE >> %s" % q(LOG),
-              "am start -n com.termux/com.termux.app.TermuxActivity >/dev/null 2>&1"]
+        lines.append("pm uninstall %s >> %s 2>&1" % (q(pkg), q(log)))
+    lines += ["cp %s %s && chmod 644 %s" % (q(apk), tmp, tmp), "pm install -r -d %s >> %s 2>&1" % (tmp, q(log)),
+              "echo \"install %s rc=$?\" >> %s" % (pkg, q(log)), "rm -f %s" % tmp]
+    if pkg == "com.termux.gui":  # the window may need 'Display over other apps' to open from Termux
+        lines.append("for p in com.termux com.termux.gui; do appops set $p SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; done")
+    lines += ["echo DONE >> %s" % q(log), "am start -n com.termux/com.termux.app.TermuxActivity >/dev/null 2>&1"]
+    marker = os.path.join(FKDIR, "open-next")
+    open(marker, "w").close()  # if Android restarts Termux, the next session opens FlashKit by itself
     subprocess.Popen(["su", "-c", ROOT_PREFIX + "\n".join(lines)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
     end, txt = time.time() + 150, ""
     while time.time() < end:
         try:
-            txt = open(LOG).read()
+            txt = open(log).read()
         except OSError:
             txt = ""
         if "DONE" in txt:
             break
         time.sleep(1)
+    try:
+        os.remove(marker)  # we're still alive, so there was no restart
+    except OSError:
+        pass
     if "install %s rc=0" % pkg in txt:
         return True, ""
     fail = [l for l in txt.splitlines() if "Failure" in l or "Error" in l]
-    return False, (fail[-1] if fail else "no answer from the installer (see %s)" % LOG)
+    return False, (fail[-1] if fail else "no answer from the installer (see %s)" % log)
 
 
 def install_manual_one(apk, pkg):
@@ -461,9 +475,16 @@ def main(argv=None):
     if args.no_root:
         os.environ["FK_NO_ROOT"] = "1"
     os.makedirs(WORK, exist_ok=True)
+    for old in glob.glob(os.path.join(FKDIR, "plugin-install*.log")):
+        try:
+            os.remove(old)
+        except OSError:
+            pass
     inst, tcerts, rows = status(WORK)
     installer = inst.get(TERMUX, "")
-    where = {"": "GitHub/other (no installer recorded)", "com.android.vending": "Google Play"}.get(installer, "F-Droid" if "fdroid" in installer else installer)
+    where = {"": "an APK you installed (installer not recorded)", "com.android.vending": "Google Play",
+             "com.google.android.packageinstaller": "a downloaded APK (Android package installer)",
+             "com.android.packageinstaller": "a downloaded APK (Android package installer)"}.get(installer, "F-Droid" if "fdroid" in installer else installer)
     say("Termux: from %s | signature %s" % (where, (tcerts[0][:16] + "...") if tcerts else "could not be read"))
     for r in rows:
         say("  %-11s %s" % (r["label"], {"ok": "installed, signature matches", "installed": "installed", "missing": "NOT installed",
