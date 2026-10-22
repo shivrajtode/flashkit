@@ -125,6 +125,7 @@ do_autostart() {
 
 do_uninstall() {
   for a in "$@"; do case "$a" in -y|--yes) FLASHKIT_YES=1 ;; esac; done
+  ask "This removes FlashKit from this phone (you'll be asked what to delete next). Continue?" || { say "Cancelled - nothing was removed."; return 0; }
   rm -f "$PREFIX/bin/flashkit" "$HOME/.shortcuts/FlashKit"; grep -qs 'flashkit start' "$PREFIX/bin/start" 2>/dev/null && rm -f "$PREFIX/bin/start"
   remove_hook
   say "Removed: the flashkit command, 'start flashkit', the Termux:Widget shortcut, and the startup hook."
@@ -160,6 +161,7 @@ menu_action() {   # returns 99 when the menu should close
     5) do_doctor; pause ;;
     6) if [ "$(conf_get AUTOSTART)" = 1 ]; then do_autostart off; else do_autostart on; fi; pause ;;
     7) say "FlashKit $VERSION"; say "Made by @Shivraj_editx - https://t.me/Shivraj_editx"; say "Repo: https://github.com/$(repo_conf GITHUB_REPO)"; pause ;;
+    8) do_uninstall; pause; [ -x "$SELF" ] || return 99 ;;
   esac
   return 0
 }
@@ -176,17 +178,18 @@ do_menu() {
     auto=off; [ "$(conf_get AUTOSTART)" = 1 ] && auto=ON
     if have_dialog; then
       c="$(dialog --clear --backtitle "Made by @Shivraj_editx" --title " FlashKit $VERSION " --cancel-label "Exit" \
-        --menu "Flash a second Android device over OTG" 18 64 7 \
+        --menu "Flash a second Android device over OTG" 19 64 8 \
         1 "Start FlashKit" \
         2 "Run manually (text menu)" \
         3 "Update FlashKit" \
         4 "Check / install Termux:GUI + Termux:API" \
         5 "Doctor (check everything)" \
         6 "Open FlashKit when Termux starts: $auto" \
-        7 "About" 3>&1 1>&2 2>&3)" || { clear; return 0; }
+        7 "About" \
+        8 "Uninstall FlashKit" 3>&1 1>&2 2>&3)" || { clear; return 0; }
       clear
     else
-      printf '\n  FlashKit %s\n  ----------------\n  1) Start FlashKit\n  2) Run manually (text menu)\n  3) Update FlashKit\n  4) Check / install Termux:GUI + Termux:API\n  5) Doctor (check everything)\n  6) Open FlashKit when Termux starts: %s\n  7) About\n  0) Exit\n\nChoose: ' "$VERSION" "$auto"
+      printf '\n  FlashKit %s\n  ----------------\n  1) Start FlashKit\n  2) Run manually (text menu)\n  3) Update FlashKit\n  4) Check / install Termux:GUI + Termux:API\n  5) Doctor (check everything)\n  6) Open FlashKit when Termux starts: %s\n  7) About\n  8) Uninstall FlashKit\n  0) Exit\n\nChoose: ' "$VERSION" "$auto"
       read -r c || return 0
       [ "$c" = 0 ] || [ -z "$c" ] && return 0
     fi

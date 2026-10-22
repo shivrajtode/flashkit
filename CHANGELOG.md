@@ -1,5 +1,8 @@
 # 📝 Changelog
 
+## g9.6 - Uninstall in the menu
+- "Uninstall FlashKit" is now item 8 in the `flashkit` menu (asks before removing anything).
+
 ## g9.5 - A real "uninstall completely"
 - `flashkit uninstall` now also offers to delete the app folder itself and to uninstall Termux:GUI/Termux:API (root, or Android's own uninstall screen without root).
 - `flashkit uninstall -y` does all of that in one command, no prompts.
