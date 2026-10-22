@@ -178,7 +178,7 @@ Gets the newest version from GitHub, shows what's new, and refreshes anything ne
 | `flashkit doctor` (or `check`) | Health check |
 | `flashkit autostart on` / `off` | Open the menu when Termux starts |
 | `flashkit setup` | Re-run the installer |
-| `flashkit uninstall` | Remove the commands and settings |
+| `flashkit uninstall` (`-y` for everything, no questions) | Remove FlashKit - asks what to delete (settings, the app files, Termux:GUI/API), or does all of it with `-y` |
 
 <br>
 
@@ -229,6 +229,18 @@ Run <code>flashkit doctor</code>. Make sure Termux:GUI is installed, then try <c
 
 <br>
 Tap <b>Cancel job</b> on the job screen - it stops the whole process tree. Then <b>Copy</b> the output if you want to share it.
+</details>
+
+<details>
+<summary><b>How do I uninstall FlashKit completely?</b></summary>
+
+<br>
+
+```sh
+flashkit uninstall -y
+```
+
+That removes the `flashkit` / `start flashkit` commands, the Termux:Widget shortcut, the auto-start hook, FlashKit's settings and logs, the app files themselves, and uninstalls Termux:GUI and Termux:API. Run `flashkit uninstall` with no flag to be asked about each of those instead (handy if you want to keep the plugin apps for something else).
 </details>
 
 <details>

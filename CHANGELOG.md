@@ -1,5 +1,9 @@
 # 📝 Changelog
 
+## g9.5 - A real "uninstall completely"
+- `flashkit uninstall` now also offers to delete the app folder itself and to uninstall Termux:GUI/Termux:API (root, or Android's own uninstall screen without root).
+- `flashkit uninstall -y` does all of that in one command, no prompts.
+
 ## g9.4 - README cleanup
 - Removed the maintainer-only publishing section from the public README - the same steps are already in `tools/publish.sh`'s own header comment, for personal use only.
 

@@ -9,6 +9,18 @@ LEGACY="${FLASHKIT_LEGACY:-$DIR/legacy/flashkit.sh}"
 say() { printf '%s\n' "$*"; }
 err() { printf '\033[1;31m%s\033[0m\n' "$*" >&2; }
 is_tty() { { [ -t 0 ] && [ -t 1 ]; } || [ -n "${FLASHKIT_FORCE_TTY:-}" ]; }
+ask() { [ "${FLASHKIT_YES:-0}" = 1 ] && return 0; printf '%s [y/N] ' "$1"; read -r a; case "$a" in y|Y) return 0 ;; *) return 1 ;; esac; }
+have_root_q() { command -v su >/dev/null 2>&1 && timeout 10 su -c id 2>/dev/null | grep -q 'uid=0'; }
+android_tool() { env -u LD_PRELOAD -u LD_LIBRARY_PATH PATH="/system/bin:/system/xbin:/vendor/bin:$PATH" "$@"; }
+uninstall_pkg() {   # best effort: root removes it silently, otherwise open Android's own uninstall screen
+  if have_root_q; then
+    su -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export PATH=/system/bin:/system/xbin:/vendor/bin:$PATH; pm uninstall '"$1" >/dev/null 2>&1 \
+      && say "  uninstalled $1" || say "  could not uninstall $1 (it may already be gone)"
+  else
+    android_tool am start -a android.intent.action.DELETE -d package:"$1" >/dev/null 2>&1
+    say "  opened the uninstall screen for $1 - confirm there if you want it removed"
+  fi
+}
 conf_get() { sed -n "s/^$1=//p" "$CONF" 2>/dev/null | tail -n1; }
 conf_set() { mkdir -p "$(dirname "$CONF")"; touch "$CONF"; { grep -v "^$1=" "$CONF"; echo "$1=$2"; } > "$CONF.tmp"; mv "$CONF.tmp" "$CONF"; }
 repo_conf() { sed -n "s/^$1=//p" "$DIR/tools/repo.conf" 2>/dev/null | head -n1; }
@@ -25,7 +37,7 @@ FlashKit $VERSION - flash a second Android device over OTG
   flashkit autostart on|off    open the menu every time Termux starts
   flashkit setup        (re)install packages, plugins and this command
   flashkit version      show the version
-  flashkit uninstall    remove the command and FlashKit's settings
+  flashkit uninstall [-y]    remove FlashKit (asks what to delete; -y removes EVERYTHING, no questions)
 USAGE
 }
 
@@ -112,11 +124,29 @@ do_autostart() {
 }
 
 do_uninstall() {
-  rm -f "$PREFIX/bin/flashkit" "$HOME/.shortcuts/FlashKit"; grep -qs 'flashkit start' "$PREFIX/bin/start" && rm -f "$PREFIX/bin/start"
-  remove_hook; say "Removed the flashkit command, the 'start flashkit' command and the Termux startup hook."
-  printf 'Also delete FlashKit settings and logs (~/.flashkit_gui.json, ~/flashkit_gui.log, ~/.flashkit)? [y/N] '
-  read -r a; case "$a" in y|Y) rm -rf "$HOME/.flashkit_gui.json" "$HOME/flashkit_gui.log" "$HOME/.flashkit"; say "Deleted." ;; esac
-  say "The folder $DIR and the Termux:GUI/API apps were left alone - delete or uninstall them yourself if you want."
+  for a in "$@"; do case "$a" in -y|--yes) FLASHKIT_YES=1 ;; esac; done
+  rm -f "$PREFIX/bin/flashkit" "$HOME/.shortcuts/FlashKit"; grep -qs 'flashkit start' "$PREFIX/bin/start" 2>/dev/null && rm -f "$PREFIX/bin/start"
+  remove_hook
+  say "Removed: the flashkit command, 'start flashkit', the Termux:Widget shortcut, and the startup hook."
+
+  if ask "Also delete FlashKit's settings and logs (~/.flashkit_gui.json, ~/flashkit_gui.log, ~/.flashkit)?"; then
+    rm -rf "$HOME/.flashkit_gui.json" "$HOME/flashkit_gui.log" "$HOME/.flashkit"; say "Deleted settings and logs."
+  fi
+
+  local drop_folder=1
+  ask "Delete the FlashKit app files too ($DIR)? This is what makes it a COMPLETE uninstall." || drop_folder=0
+
+  if ask "Also uninstall Termux:GUI and Termux:API from this phone? (skip this if you use them for anything else)"; then
+    uninstall_pkg com.termux.gui; uninstall_pkg com.termux.api
+  fi
+
+  if [ "$drop_folder" = 1 ]; then
+    cd "$HOME" 2>/dev/null || cd /
+    rm -rf "$DIR"
+    say "Deleted $DIR - FlashKit is fully removed."
+  else
+    say "Kept $DIR - delete it yourself any time with:  rm -rf $DIR"
+  fi
 }
 
 pause() { printf '\nPress Enter to go back to the menu... '; read -r _; }
@@ -176,7 +206,7 @@ main() {
     autostart) do_autostart "${2:-status}" ;;
     hook) add_hook ;;
     version|-v|--version) say "$VERSION" ;;
-    uninstall) do_uninstall ;;
+    uninstall) shift; do_uninstall "$@" ;;
     help|-h|--help) usage ;;
     *) err "Unknown command: $1"; usage; exit 2 ;;
   esac
