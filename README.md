@@ -261,15 +261,7 @@ That removes the `flashkit` / `start flashkit` commands, the Termux:Widget short
 
 <div align="center">
 
-<table><tr><td align="center" width="112">
-
-<a href="https://t.me/Shivraj_editx"><img src="https://t.me/i/userpic/320/Shivraj_editx.jpg" width="92" alt="@Shivraj_editx"></a>
-
-</td><td align="center">
-
-<a href="https://t.me/Shivraj_editx"><img src="assets/author-card.svg" alt="Made by @Shivraj_editx on Telegram" width="420"></a>
-
-</td></tr></table>
+<a href="https://t.me/Shivraj_editx"><img src="https://t.me/i/userpic/320/Shivraj_editx.jpg" width="105" height="105" alt="@Shivraj_editx"></a>&nbsp;<a href="https://t.me/Shivraj_editx"><img src="assets/author-card.svg" alt="Made by @Shivraj_editx on Telegram" width="420" height="105"></a>
 
 If FlashKit saved you a trip to a PC, drop a ⭐ on the repo - it really helps!
 

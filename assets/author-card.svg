@@ -1,36 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 156" width="560" height="156" role="img" aria-label="Made by Shivraj_editx on Telegram">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 150" width="600" height="150" role="img" aria-label="Made by Shivraj_editx on Telegram">
 <defs>
-<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2DE2C4"/><stop offset=".55" stop-color="#5B8CFF"/><stop offset="1" stop-color="#9B6BFF"/></linearGradient>
-<linearGradient id="title" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#9FF3E4"/></linearGradient>
-<radialGradient id="b1"><stop offset="0" stop-color="#2DE2C4" stop-opacity=".9"/><stop offset="1" stop-color="#2DE2C4" stop-opacity="0"/></radialGradient>
-<radialGradient id="b2"><stop offset="0" stop-color="#9B6BFF" stop-opacity=".9"/><stop offset="1" stop-color="#9B6BFF" stop-opacity="0"/></radialGradient>
-<radialGradient id="b3"><stop offset="0" stop-color="#5B8CFF" stop-opacity=".85"/><stop offset="1" stop-color="#5B8CFF" stop-opacity="0"/></radialGradient>
-<linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".30"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-<filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="22"/></filter>
-<clipPath id="clip"><rect x="2" y="2" width="556" height="152" rx="30"/></clipPath>
-<pattern id="grain" width="3" height="3" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".5" fill="#fff" fill-opacity=".045"/></pattern>
+<linearGradient id="surf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#132420"/><stop offset="1" stop-color="#0f1d2b"/></linearGradient>
+<linearGradient id="namegrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#EAFBF6"/><stop offset="1" stop-color="#8FF0D6"/></linearGradient>
+<linearGradient id="chipgrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2DE2C4"/><stop offset="1" stop-color="#22B7A0"/></linearGradient>
+<clipPath id="cardclip"><path d="M57,3 L571,3 A26,26 0 0 1 597,29 L597,93 A54,54 0 0 1 543,147 L19,147 A16,16 0 0 1 3,131 L3,57 A54,54 0 0 1 57,3 Z"/></clipPath>
+<filter id="elev" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity=".38"/></filter>
 </defs>
-<rect width="560" height="156" rx="30" fill="#0a0e18"/>
-<g clip-path="url(#clip)">
-  <rect width="560" height="156" fill="#0b1020"/>
-  <circle cx="86" cy="40" r="78" fill="url(#b1)" filter="url(#soft)"/>
-  <circle cx="150" cy="140" r="70" fill="url(#b3)" filter="url(#soft)"/>
-  <circle cx="420" cy="20" r="90" fill="url(#b2)" filter="url(#soft)"/>
-  <circle cx="500" cy="150" r="80" fill="url(#b1)" filter="url(#soft)" opacity=".7"/>
-  <rect width="560" height="156" fill="url(#grain)"/>
-  <rect x="10" y="10" width="540" height="136" rx="22" fill="#ffffff" fill-opacity=".07"/>
-  <rect x="10" y="10" width="540" height="68" rx="22" fill="url(#sheen)"/>
-  <rect x="10.75" y="10.75" width="538.5" height="134.5" rx="21.5" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="1.5"/>
+<g filter="url(#elev)">
+<path d="M57,3 L571,3 A26,26 0 0 1 597,29 L597,93 A54,54 0 0 1 543,147 L19,147 A16,16 0 0 1 3,131 L3,57 A54,54 0 0 1 57,3 Z" fill="url(#surf)"/>
+<g clip-path="url(#cardclip)">
+  <path d="M582.6,34.0 Q582.6,34.0 569.4,52.0 Q556.1,70.1 538.0,86.3 Q520.0,102.4 500.7,87.5 Q481.4,72.6 467.7,53.3 Q453.9,34.0 468.5,15.5 Q483.1,-2.9 501.5,-19.3 Q520.0,-35.6 538.9,-19.7 Q557.7,-3.7 570.2,15.1 Z" fill="#9B6BFF" fill-opacity=".30"/>
+  <path d="M582.6,34.0 Q582.6,34.0 569.4,52.0 Q556.1,70.1 538.0,86.3 Q520.0,102.4 500.7,87.5 Q481.4,72.6 467.7,53.3 Q453.9,34.0 468.5,15.5 Q483.1,-2.9 501.5,-19.3 Q520.0,-35.6 538.9,-19.7 Q557.7,-3.7 570.2,15.1 Z" fill="#9B6BFF" fill-opacity=".16" transform="translate(-26 18) scale(.86)"/>
+  <circle cx="60" cy="150" r="70" fill="#2DE2C4" fill-opacity=".12"/>
 </g>
-<g font-family="'Segoe UI','Helvetica Neue',Roboto,Arial,sans-serif">
-  <text x="40" y="62" font-size="21" fill="#B8C7DD">💙 Made by</text>
-  <text x="40" y="102" font-size="38" font-weight="800" letter-spacing="-.5" fill="url(#title)">@Shivraj_editx</text>
-  <g transform="translate(40 118)">
-    <rect width="194" height="34" rx="17" fill="#229ED9" fill-opacity=".16" stroke="#6FC6EE" stroke-opacity=".55" stroke-width="1.3"/>
-    <g transform="translate(13 5)"><path d="M4 11.4 L23 4.2 C23.9 3.86 24.7 4.4 24.4 5.56 L21.1 21.2 C20.86 22.3 20.2 22.57 19.3 22.06 L14.4 18.4 L12.06 20.66 C11.8 20.92 11.57 21.14 11.08 21.14 L11.42 16.2 L20.3 8.2 C20.7 7.86 20.2 7.66 19.68 8 L8.56 15.1 L4.1 13.66 C3.2 13.36 3.18 12.72 4 11.4 Z" fill="#7FD1F2"/></g>
-    <text x="40" y="23" font-size="16" font-weight="600" fill="#BFE6FA">t.me/Shivraj_editx</text>
+<path d="M57,3 L571,3 A26,26 0 0 1 597,29 L597,93 A54,54 0 0 1 543,147 L19,147 A16,16 0 0 1 3,131 L3,57 A54,54 0 0 1 57,3 Z" fill="none" stroke="#ffffff" stroke-opacity=".08" stroke-width="1.5"/>
+</g>
+<g font-family="'Google Sans','Segoe UI','Helvetica Neue',Roboto,Arial,sans-serif">
+  <g transform="translate(34 30)"><path d="M26,0 L34,0 A18,18 0 0 1 52,18 L52,26 A26,26 0 0 1 26,52 L18,52 A18,18 0 0 1 0,34 L0,26 A26,26 0 0 1 26,0 Z" fill="url(#chipgrad)"/><path d="M9.5 24.6 L38 12.4 C39.6 11.7 41 12.8 40.4 15 L35.3 40.8 C34.9 42.7 33.7 43.2 32 42.2 L23.3 35.7 L19.2 39.7 C18.7 40.2 18.3 40.6 17.4 40.6 L18 32.3 L34.1 17.7 C34.8 17.1 34 16.8 33 17.4 L13 30 L5 27.5 C3.3 27 3.3 25.8 5.4 25 Z" fill="#fff" transform="translate(5 3) scale(.62)"/></g>
+  <text x="100" y="52" font-size="16" font-weight="600" fill="#9FB5C9" letter-spacing=".2">Made by</text>
+  <text x="100" y="82" font-size="30" font-weight="800" letter-spacing="-.3" fill="url(#namegrad)">@Shivraj_editx</text>
+  <g transform="translate(100 98)">
+    <path d="M19,0 L211,0 A19,19 0 0 1 230,19 L230,19 A19,19 0 0 1 211,38 L19,38 A19,19 0 0 1 0,19 L0,19 A19,19 0 0 1 19,0 Z" fill="#2DE2C4" fill-opacity=".14"/>
+    <path d="M19,0 L211,0 A19,19 0 0 1 230,19 L230,19 A19,19 0 0 1 211,38 L19,38 A19,19 0 0 1 0,19 L0,19 A19,19 0 0 1 19,0 Z" fill="none" stroke="#2DE2C4" stroke-opacity=".55" stroke-width="1.4"/>
+    <g transform="translate(12 7)"><path d="M3.5 10.1 L16.5 4.9 C17.3 4.57 17.9 5.05 17.65 6.05 L15.1 17.8 C14.9 18.7 14.35 18.95 13.6 18.5 L10 16 L8.3 17.7 C8.1 17.9 7.9 18.1 7.5 18.1 L7.8 14.2 L14.6 7.8 C14.9 7.5 14.5 7.35 14.1 7.63 L5.6 13.1 L2.3 12 C1.5 11.75 1.5 11.2 2.2 10.78 Z" fill="#2DE2C4"/></g>
+    <text x="38" y="25" font-size="14.5" font-weight="700" fill="#BFF4E8">t.me/Shivraj_editx</text>
   </g>
-  <text x="532" y="136" font-size="13" text-anchor="end" fill="#5B6B85">Creator of FlashKit</text>
+  <text x="574" y="132" font-size="12.5" text-anchor="end" fill="#4D6A63">Creator of FlashKit</text>
 </g>
 </svg>

@@ -1,5 +1,9 @@
 # 📝 Changelog
 
+## g9.9 - Material 3 Expressive author card
+- Swapped the glass card for a Material 3 Expressive one: solid tonal surface, asymmetric corners, a circular icon container, and a filled pill chip - no blur.
+- Dropped the table (its default border was showing); the photo and card now sit side by side at matching height.
+
 ## g9.8 - Glass author card
 - Replaced the footer text with a glassmorphism-style card (`assets/author-card.svg`) next to the live Telegram photo; dropped the explanatory sentence about how the photo updates.
 
