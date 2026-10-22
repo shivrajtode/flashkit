@@ -263,13 +263,11 @@ That removes the `flashkit` / `start flashkit` commands, the Termux:Widget short
 
 <table><tr><td align="center" width="112">
 
-<a href="https://t.me/Shivraj_editx"><img src="https://t.me/i/userpic/320/Shivraj_editx.jpg" width="88" alt="@Shivraj_editx"></a>
+<a href="https://t.me/Shivraj_editx"><img src="https://t.me/i/userpic/320/Shivraj_editx.jpg" width="92" alt="@Shivraj_editx"></a>
 
-</td><td align="left">
+</td><td align="center">
 
-**💙 Made by [@Shivraj_editx](https://t.me/Shivraj_editx)**
-<br><sub>that's a live link to the Telegram profile photo above - it updates on its own whenever it changes there</sub>
-<br>[![Telegram](https://img.shields.io/badge/Telegram-%40Shivraj__editx-26A5E4?style=flat-square&logo=telegram&logoColor=white)](https://t.me/Shivraj_editx)
+<a href="https://t.me/Shivraj_editx"><img src="assets/author-card.svg" alt="Made by @Shivraj_editx on Telegram" width="420"></a>
 
 </td></tr></table>
 

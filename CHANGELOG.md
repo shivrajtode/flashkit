@@ -1,5 +1,8 @@
 # 📝 Changelog
 
+## g9.8 - Glass author card
+- Replaced the footer text with a glassmorphism-style card (`assets/author-card.svg`) next to the live Telegram photo; dropped the explanatory sentence about how the photo updates.
+
 ## g9.7 - Live Telegram photo in the README
 - The "Made by" credit now shows the actual current Telegram profile photo for @Shivraj_editx, pulled live from Telegram on every page view - no repo update needed when the picture changes.
 
