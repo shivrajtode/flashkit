@@ -25,6 +25,7 @@ USER_NAME="$(detect_user)"
 say "Publishing as $USER_NAME/$REPO_NAME"
 
 for f in README.md docs/GUIDE.md get.sh tools/repo.conf .github/ISSUE_TEMPLATE/config.yml; do [ -f "$f" ] && sed -i "s#__GH_REPO__#$USER_NAME/$REPO_NAME#g" "$f"; done
+VERSION="$(cat VERSION 2>/dev/null || echo dev)"; [ -f README.md ] && sed -i "s#__VERSION__#$VERSION#g" README.md
 
 [ -d .git ] || { git init -q -b "$BRANCH" 2>/dev/null || { git init -q && git checkout -q -b "$BRANCH"; }; }
 git checkout -q "$BRANCH" 2>/dev/null || git checkout -q -b "$BRANCH"
@@ -59,7 +60,13 @@ else
   fi
   git push -u origin "$BRANCH" || die "Push failed - check that Termux is logged in to GitHub."
 fi
-git tag -f "v$VERSION" -m "FlashKit $VERSION" >/dev/null 2>&1 && git push -f -q origin "v$VERSION" >/dev/null 2>&1
+# earlier versions of this script tagged every publish (vg9.2, vg9.3 ...), which made the version look like it kept changing - tidy those up
+stale="$(git ls-remote --tags origin 'refs/tags/vg*' 2>/dev/null | sed 's#.*refs/tags/##; s#\^{}##' | sort -u)"
+if [ -n "$stale" ]; then
+  for t in $stale; do git push -q origin ":refs/tags/$t" >/dev/null 2>&1; done
+  say "Removed old version tags from GitHub: $(echo $stale)"
+fi
+for t in $(git tag -l 'vg*'); do git tag -d "$t" >/dev/null 2>&1; done
 DESC="Flash, sideload and rescue a second Android device over OTG from a rooted phone - Termux:GUI app"
 TOPICS="termux,android,adb,fastboot,flasher,rom,gsi,sideload,otg,kernelsu,magisk,termux-gui,python"
 if [ -z "${FLASHKIT_REMOTE:-}" ]; then   # best effort: repo description + topics

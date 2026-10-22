@@ -31,4 +31,12 @@ class Docs(unittest.TestCase):
         filled = set(m.group(1).split())
         for rel in ("README.md", "docs/GUIDE.md", "get.sh", "tools/repo.conf", ".github/ISSUE_TEMPLATE/config.yml"): self.assertIn(rel, filled)
 
+    def test_repo_version_is_the_apps_version(self):
+        """Docs/graphics-only changes must not change the version: it only moves when the app does."""
+        app = re.search(r'^VERSION = "([^"]+)"', read("flashkit_gui.py"), re.M).group(1)
+        self.assertEqual(read("VERSION").strip(), app)
+    def test_version_badge_comes_from_the_version_file(self):
+        self.assertIn("img.shields.io/badge/version-__VERSION__", read("README.md"))
+        pub = read("tools/publish.sh"); self.assertIn("__VERSION__", pub); self.assertNotIn("git tag -f", pub)
+
 if __name__ == "__main__": unittest.main()

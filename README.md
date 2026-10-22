@@ -2,7 +2,7 @@
 
 <img src="assets/banner.svg" alt="FlashKit - flash a second Android device over OTG" width="100%">
 
-[![Version](https://img.shields.io/github/v/tag/shivrajtode/flashkit?label=version&style=for-the-badge&color=9B6BFF&labelColor=0E1626)](https://github.com/shivrajtode/flashkit/tags)
+[![Version](https://img.shields.io/badge/version-g9-9B6BFF?style=for-the-badge&labelColor=0E1626)](CHANGELOG.md)
 [![Stars](https://img.shields.io/github/stars/shivrajtode/flashkit?style=for-the-badge&color=FFC857&labelColor=0E1626&logo=github&logoColor=white)](https://github.com/shivrajtode/flashkit/stargazers)
 [![Checks](https://img.shields.io/github/actions/workflow/status/shivrajtode/flashkit/check.yml?branch=main&style=for-the-badge&label=checks&labelColor=0E1626)](https://github.com/shivrajtode/flashkit/actions)
 [![License](https://img.shields.io/github/license/shivrajtode/flashkit?style=for-the-badge&color=37E08B&labelColor=0E1626)](LICENSE)
