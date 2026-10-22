@@ -36,7 +36,12 @@ class Docs(unittest.TestCase):
         app = re.search(r'^VERSION = "([^"]+)"', read("flashkit_gui.py"), re.M).group(1)
         self.assertEqual(read("VERSION").strip(), app)
     def test_version_badge_comes_from_the_version_file(self):
-        self.assertIn("img.shields.io/badge/version-__VERSION__", read("README.md"))
+        # Checked out from GitHub, README.md already has publish.sh's sed applied (the placeholder is gone,
+        # replaced with the real version) - checked out from the shipped zip, it still says __VERSION__. Both
+        # are correct; what must hold either way is that the badge isn't showing some OTHER, unrelated text.
+        m = re.search(r"img\.shields\.io/badge/version-([^-?]+)-9B6BFF", read("README.md"))
+        self.assertIsNotNone(m, "version badge not found in README.md")
+        self.assertIn(m.group(1), ("__VERSION__", read("VERSION").strip()))
         pub = read("tools/publish.sh"); self.assertIn("__VERSION__", pub); self.assertNotIn("git tag -f", pub)
 
 if __name__ == "__main__": unittest.main()

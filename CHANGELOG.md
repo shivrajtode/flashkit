@@ -3,6 +3,7 @@
 The app is at **g9**. Work on the repo, the installer and the `flashkit` command since then did not change the app's version, so it is listed together here.
 
 ## Since g9 (repo, installer and the `flashkit` command)
+- Fixed a CI test that checked the README for its pre-publish placeholder text, so it failed on every repo that had actually been published.
 - **Repo look:** new README with banner, badges, icons and a 3-step install; a user guide (`docs/GUIDE.md`); issue templates; a Material 3 Expressive author card next to the live Telegram photo.
 - **FlashKit menu:** `flashkit` opens a menu - Start FlashKit, Run manually, Update, Check/install plugins, Doctor, autostart, Uninstall. `start flashkit` and `flashkit start` open the app directly, and there is a *FlashKit* entry for the Termux:Widget home-screen widget.
 - **Uninstall:** `flashkit uninstall` removes FlashKit and asks what to delete; `-y` removes everything - the commands, settings, app files and the Termux:GUI / Termux:API apps.
